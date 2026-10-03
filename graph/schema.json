@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GoogleBusinessProfileToolkitKnowledgeGraphSchema",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "type": { "type": "string", "enum": ["entity", "concept", "system"] },
+          "summary": { "type": "string" }
+        },
+        "required": ["id", "title", "type", "summary"]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "type": { "type": "string" }
+        },
+        "required": ["source", "target", "type"]
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "required": ["nodes", "edges", "metadata"]
+}

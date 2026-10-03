@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "zero-repeat-hashing",
+      "title": "Zero Repeat Hashing",
+      "type": "concept",
+      "summary": "# Zero Repeat Hashing\n\n## Summary\nThe policy and algorithmic mechanism preventing repetitive marketing posts on Google Business Profiles by "
+    },
+    {
+      "id": "nap-consistency",
+      "title": "NAP Consistency",
+      "type": "concept",
+      "summary": "# NAP Consistency\n\n## Summary\nThe local SEO standard requiring absolute consistency across Name, Address, and Phone number between Google Bu"
+    },
+    {
+      "id": "gbp-toolkit",
+      "title": "GBP Toolkit",
+      "type": "entity",
+      "summary": "# GBP Toolkit\n\n## Summary\nThe `google-business-profile-toolkit` is an agnostic, modular Python library and CLI for Google Business Profile a"
+    },
+    {
+      "id": "gbp-client",
+      "title": "GBP Client",
+      "type": "entity",
+      "summary": "# GBP Client\n\n## Summary\nThe primary HTTP client wrapping Google Business Profile REST APIs across `mybusinessaccountmanagement`, `mybusines"
+    },
+    {
+      "id": "gbp-cli",
+      "title": "GBP CLI",
+      "type": "system",
+      "summary": "# GBP CLI\n\n## Summary\nThe unified command-line entrypoint (`gbp`) providing zero-scratch operational commands for location discovery, post p"
+    },
+    {
+      "id": "holiday-hours-automation",
+      "title": "Holiday Hours Automation",
+      "type": "system",
+      "summary": "# Holiday Hours Automation\n\n## Summary\nThe system that proactively schedules special holiday business hours (e.g. Thanksgiving, Christmas, N"
+    }
+  ],
+  "edges": [
+    {
+      "source": "zero-repeat-hashing",
+      "target": "gbp-toolkit",
+      "type": "relates_to"
+    },
+    {
+      "source": "zero-repeat-hashing",
+      "target": "gbp-cli",
+      "type": "relates_to"
+    },
+    {
+      "source": "nap-consistency",
+      "target": "gbp-toolkit",
+      "type": "relates_to"
+    },
+    {
+      "source": "nap-consistency",
+      "target": "gbp-cli",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-toolkit",
+      "target": "gbp-client",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-toolkit",
+      "target": "zero-repeat-hashing",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-toolkit",
+      "target": "nap-consistency",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-toolkit",
+      "target": "holiday-hours-automation",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-toolkit",
+      "target": "gbp-cli",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-client",
+      "target": "gbp-toolkit",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-client",
+      "target": "gbp-cli",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-cli",
+      "target": "gbp-toolkit",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-cli",
+      "target": "gbp-client",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-cli",
+      "target": "zero-repeat-hashing",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-cli",
+      "target": "nap-consistency",
+      "type": "relates_to"
+    },
+    {
+      "source": "gbp-cli",
+      "target": "holiday-hours-automation",
+      "type": "relates_to"
+    },
+    {
+      "source": "holiday-hours-automation",
+      "target": "gbp-toolkit",
+      "type": "relates_to"
+    },
+    {
+      "source": "holiday-hours-automation",
+      "target": "gbp-cli",
+      "type": "relates_to"
+    }
+  ],
+  "metadata": {
+    "built_at": "2026-10-03T17:01:03.608228",
+    "total_nodes": 6,
+    "total_edges": 18
+  }
+}

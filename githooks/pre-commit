@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+echo "🔍 Running pre-commit checks..."
+ruff check src/ tests/ examples/
+pytest tests/ -v
+echo "✅ All checks passed successfully!"

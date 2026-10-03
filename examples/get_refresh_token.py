@@ -2,13 +2,12 @@
 """Local OAuth helper to get Google Business Profile refresh token and account IDs."""
 
 import json
+import os
+import sys
 import urllib.parse
 import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-
-import os
-import sys
 
 CLIENT_ID = os.environ.get("GBP_OAUTH_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("GBP_OAUTH_CLIENT_SECRET", "")
@@ -96,7 +95,6 @@ def main():
     print("🔄 Exchanging code for tokens...")
     tokens = exchange_code(auth_code)
     refresh_token = tokens.get("refresh_token")
-    access_token = tokens.get("access_token")
 
     print("\n" + "=" * 75)
     print("🎉 SUCCESS! YOUR TOKENS ARE READY:")

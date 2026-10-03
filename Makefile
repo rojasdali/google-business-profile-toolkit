@@ -1,4 +1,9 @@
-.PHONY: test lint format install
+.PHONY: test lint format install graph check
+
+graph:
+	python3 scripts/build_graph.py
+
+check: lint test
 
 install:
 	pip install -e ".[dev]"
