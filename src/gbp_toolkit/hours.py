@@ -14,19 +14,23 @@ def format_special_hour_period(day: SpecialHoursDay) -> Dict[str, Any]:
             "year": day.date_val.year,
             "month": day.date_val.month,
             "day": day.date_val.day,
-        }
+        },
+        "endDate": {
+            "year": day.date_val.year,
+            "month": day.date_val.month,
+            "day": day.date_val.day,
+        },
     }
     if day.is_closed:
-        period["isClosed"] = True
+        period["closed"] = True
     else:
         if day.open_time and day.close_time:
             oh, om = map(int, day.open_time.split(":"))
             ch, cm = map(int, day.close_time.split(":"))
-            period["openTime"] = f"{oh:02d}:{om:02d}:00"
-            period["closeTime"] = f"{ch:02d}:{cm:02d}:00"
-            period["endDate"] = period["startDate"]
+            period["openTime"] = {"hours": oh, "minutes": om} if om else {"hours": oh}
+            period["closeTime"] = {"hours": ch, "minutes": cm} if cm else {"hours": ch}
         else:
-            period["isClosed"] = True
+            period["closed"] = True
     return period
 
 
