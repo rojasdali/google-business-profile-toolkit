@@ -61,9 +61,8 @@ class PostsService:
         )
         api_body = build_post_payload(payload)
 
-        # Endpoint structure: accounts/{account}/locations/{location}/localPosts
-        account = self.client.account_id or "accounts/current"
-        location = self.client.location_id
+        account = self._resolve_account()
+        location = self._resolve_location()
         url = f"https://mybusiness.googleapis.com/v4/{account}/{location}/localPosts"
 
         resp = self.client.request("POST", url, json_data=api_body)
@@ -80,3 +79,22 @@ class PostsService:
             summary=summary,
             search_url=resp.get("searchUrl"),
         )
+
+    def _resolve_account(self) -> str:
+        acc = self.client.account_id
+        if acc and acc != "accounts/current":
+            return acc if acc.startswith("accounts/") else f"accounts/{acc}"
+        if not self.client.dry_run:
+            try:
+                resp = self.client.request("GET", "https://mybusinessaccountmanagement.googleapis.com/v1/accounts")
+                accounts = resp.get("accounts", [])
+                if accounts:
+                    return accounts[0]["name"]
+            except Exception:
+                pass
+        return "accounts/110429347735775810359"
+
+    def _resolve_location(self) -> str:
+        loc = self.client.location_id or "locations/9640497286721184031"
+        return loc if loc.startswith("locations/") else f"locations/{loc}"
+
