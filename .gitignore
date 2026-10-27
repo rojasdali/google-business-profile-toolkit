@@ -22,3 +22,4 @@ wheels/
 .ruff_cache/
 .env
 .DS_Store
+data/
