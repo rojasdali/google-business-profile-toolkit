@@ -1,6 +1,7 @@
 """High-level Google Business Profile Local Posts publishing service."""
 
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from gbp_toolkit.client import GBPClient
@@ -81,7 +82,7 @@ class PostsService:
         )
 
     def _resolve_account(self) -> str:
-        acc = self.client.account_id
+        acc = self.client.account_id or os.getenv("GBP_ACCOUNT_ID", "").strip()
         if acc and acc != "accounts/current":
             return acc if acc.startswith("accounts/") else f"accounts/{acc}"
         if not self.client.dry_run:
@@ -92,9 +93,14 @@ class PostsService:
                     return accounts[0]["name"]
             except Exception:
                 pass
-        return "accounts/110429347735775810359"
+            raise ValueError("Missing GBP_ACCOUNT_ID in environment and unable to resolve from API")
+        return "accounts/000000000"
 
     def _resolve_location(self) -> str:
-        loc = self.client.location_id or "locations/9640497286721184031"
+        loc = self.client.location_id or os.getenv("GBP_LOCATION_ID", "").strip()
+        if not loc:
+            if self.client.dry_run:
+                return "locations/000000000"
+            raise ValueError("Missing GBP_LOCATION_ID in environment")
         return loc if loc.startswith("locations/") else f"locations/{loc}"
 
