@@ -37,3 +37,19 @@ def test_reply_to_review():
     res = service.reply_to_review("rev_100", "Thanks for your visit!")
     assert res["comment"] == "Thanks for your visit!"
     mock_client.request.assert_called_once()
+
+
+def test_get_reviews_summary():
+    mock_client = MagicMock(spec=GBPClient)
+    mock_client.account_id = "accounts/acc123"
+    mock_client.location_id = "locations/loc456"
+    mock_client.request.return_value = {
+        "averageRating": 4.86,
+        "totalReviewCount": 140,
+        "reviews": [{"starRating": "FIVE", "comment": "Super clean!", "createTime": "2026-11-01T12:00:00Z"}],
+    }
+    service = ReviewsService(mock_client)
+    summary = service.get_reviews_summary()
+    assert summary["averageRating"] == 4.9
+    assert summary["totalReviews"] == 140
+    assert summary["latest"]["rating"] == 5

@@ -38,6 +38,27 @@ class ReviewsService:
         data = self.client.request("GET", url)
         return [parse_review_item(r) for r in data.get("reviews", [])]
 
+    def get_reviews_summary(self) -> Dict[str, Any]:
+        """Fetches aggregate star rating, total review count, and latest review."""
+        account = self.client.account_id or "accounts/current"
+        location = self.client.location_id
+        url = f"https://mybusiness.googleapis.com/v4/{account}/{location}/reviews?pageSize=1"
+        data = self.client.request("GET", url)
+        latest = (data.get("reviews") or [{}])[0]
+        return {
+            "averageRating": round(float(data.get("averageRating", 0.0)), 1),
+            "totalReviews": int(data.get("totalReviewCount", 0)),
+            "latest": (
+                {
+                    "rating": parse_star_rating(latest.get("starRating", "FIVE")) if latest.get("starRating") else 0,
+                    "text": (latest.get("comment") or "")[:280],
+                    "createTime": latest.get("createTime"),
+                }
+                if latest
+                else None
+            ),
+        }
+
     def reply_to_review(self, review_id: str, reply_text: str) -> Dict[str, Any]:
         """Submits an owner response to a specific customer review."""
         if not reply_text.strip():

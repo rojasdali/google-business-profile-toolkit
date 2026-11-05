@@ -43,9 +43,12 @@ class GBPClient:
     @classmethod
     def from_env(cls, env_path: Optional[str] = None, dry_run: bool = False) -> "GBPClient":
         """Instantiate client from environment variables."""
+        from dotenv import find_dotenv, load_dotenv
+
         if env_path and os.path.exists(env_path):
-            from dotenv import load_dotenv
             load_dotenv(env_path)
+        else:
+            load_dotenv(find_dotenv(usecwd=True) or None)
 
         client_id = os.getenv("GBP_OAUTH_CLIENT_ID", "")
         client_secret = os.getenv("GBP_OAUTH_CLIENT_SECRET", "")

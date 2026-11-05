@@ -30,8 +30,26 @@ def test_fetch_actions_summary():
     mock_client = MagicMock(spec=GBPClient)
     mock_client.location_id = "locations/loc123"
     mock_client.request.return_value = {
-        "multiDailyMetricTimeSeries": [{"dailyMetric": "BUSINESS_CALLS_AND_MESSAGES"}]
+        "multiDailyMetricTimeSeries": [
+            {
+                "dailyMetricTimeSeries": [
+                    {
+                        "dailyMetric": "CALL_CLICKS",
+                        "timeSeries": {
+                            "datedValues": [
+                                {"date": {"year": 2026, "month": 11, "day": 1}, "value": "4"},
+                                {"date": {"year": 2026, "month": 11, "day": 2}, "value": "3"},
+                            ]
+                        },
+                    }
+                ]
+            }
+        ]
     }
     service = PerformanceService(mock_client)
     data = service.fetch_actions_summary()
     assert "multiDailyMetricTimeSeries" in data
+    summary = service.get_7day_customer_actions()
+    assert summary is not None
+    assert summary["calls"] == 7
+    assert summary["directions"] == 0
