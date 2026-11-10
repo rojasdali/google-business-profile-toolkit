@@ -38,8 +38,8 @@ def test_python_modularity_and_complexity():
             with open(path, "r", encoding="utf-8") as fh:
                 lines = fh.readlines()
 
-            if len(lines) > MAX_LINES:
-                violations.append(f"{rel_path}: {len(lines)} lines exceeds max {MAX_LINES}")
+            if len(lines) >= MAX_LINES:
+                violations.append(f"{rel_path}: {len(lines)} lines must be strictly < {MAX_LINES}")
 
             tree = ast.parse("".join(lines), filename=path)
             for node in ast.walk(tree):

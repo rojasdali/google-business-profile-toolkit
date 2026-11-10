@@ -6,12 +6,17 @@ from typing import Any, Dict, List, Optional
 from gbp_toolkit.client import GBPClient
 
 PERF_URL = "https://businessprofileperformance.googleapis.com/v1/{loc}:fetchMultiDailyMetricsTimeSeries"
+KEYWORDS_URL = "https://businessprofileperformance.googleapis.com/v1/{loc}/searchkeywords/impressions/monthly"
 METRICS = {
     "CALL_CLICKS": "calls",
     "BUSINESS_DIRECTION_REQUESTS": "directions",
     "WEBSITE_CLICKS": "websiteClicks",
 }
 LOOKBACK_DAYS = 14
+
+
+def _normalize_loc(loc: str) -> str:
+    return loc if loc.startswith("locations/") else f"locations/{loc}"
 
 
 def _range_params(start: date, end: date) -> str:
@@ -23,6 +28,21 @@ def _range_params(start: date, end: date) -> str:
             f"dailyRange.{label}.day={d.day}",
         ]
     return "&".join(parts)
+
+
+def _monthly_range_params(today: date, months_back: int, page_size: int) -> str:
+    end_first = today.replace(day=1)
+    start_month_index = (end_first.year * 12 + (end_first.month - 1)) - max(months_back - 1, 0)
+    start_year, start_month = divmod(start_month_index, 12)
+    return "&".join(
+        [
+            f"monthlyRange.startMonth.year={start_year}",
+            f"monthlyRange.startMonth.month={start_month + 1}",
+            f"monthlyRange.endMonth.year={end_first.year}",
+            f"monthlyRange.endMonth.month={end_first.month}",
+            f"pageSize={page_size}",
+        ]
+    )
 
 
 def _extract_points(series: Dict[str, Any], out: Dict[str, Dict[str, int]]) -> None:
@@ -60,24 +80,27 @@ class PerformanceService:
     def __init__(self, client: GBPClient):
         self.client = client
 
-    def get_search_keywords(self, page_size: int = 25) -> List[Dict[str, Any]]:
-        """Retrieves top search queries that displayed this business profile in Google Search/Maps."""
-        location = self.client.location_id
-        url = (
-            f"https://businessprofileperformance.googleapis.com/v1/{location}:getDailySearchKeywords"
-            f"?pageSize={page_size}"
-        )
+    def get_search_keywords(
+        self, page_size: int = 25, months_back: int = 3, today: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieves monthly search keywords via Business Profile Performance API v1."""
+        loc = _normalize_loc(self.client.location_id)
+        params = _monthly_range_params(today or date.today(), months_back=months_back, page_size=page_size)
+        url = f"{KEYWORDS_URL.format(loc=loc)}?{params}"
         data = self.client.request("GET", url)
-        return [
-            {"keyword": item.get("searchKeyword"), "insights": item.get("insightsValue", {})}
-            for item in data.get("searchKeywordsCounts", [])
-        ]
+        results: List[Dict[str, Any]] = []
+        for item in data.get("searchKeywordsCounts", []):
+            ins = item.get("insightsValue", {})
+            impr = int(ins.get("value") or ins.get("threshold") or 0)
+            results.append({"keyword": item.get("searchKeyword"), "insights": ins, "impressions": impr})
+        return results
 
     def fetch_actions_summary(self, today: Optional[date] = None) -> Dict[str, Any]:
         """Queries raw multi-daily customer action time series for the location."""
         end = (today or date.today()) - timedelta(days=1)
         start = end - timedelta(days=LOOKBACK_DAYS)
-        url = f"{PERF_URL.format(loc=self.client.location_id)}?{_range_params(start, end)}"
+        loc = _normalize_loc(self.client.location_id)
+        url = f"{PERF_URL.format(loc=loc)}?{_range_params(start, end)}"
         return self.client.request("GET", url)
 
     def get_7day_customer_actions(self, today: Optional[date] = None) -> Optional[Dict[str, Any]]:

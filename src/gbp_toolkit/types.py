@@ -1,4 +1,4 @@
-"""Domain data types and Pydantic schemas for Google Business Profile."""
+"""Domain data types and schemas for Google Business Profile."""
 
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -18,12 +18,24 @@ class PostActionType(str, Enum):
     BOOK = "BOOK"
     SIGN_UP = "SIGN_UP"
     ORDER = "ORDER"
+    SHOP = "SHOP"
+
+
+LINK_ACTION_TYPES = frozenset(
+    {
+        PostActionType.LEARN_MORE,
+        PostActionType.BOOK,
+        PostActionType.ORDER,
+        PostActionType.SHOP,
+        PostActionType.SIGN_UP,
+    }
+)
 
 
 @dataclass
 class CallToAction:
     action_type: PostActionType
-    url: str
+    url: Optional[str] = None
 
 
 @dataclass

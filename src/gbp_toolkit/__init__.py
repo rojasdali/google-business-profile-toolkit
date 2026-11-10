@@ -4,7 +4,7 @@ from typing import Optional
 
 from gbp_toolkit.client import GBPClient, GBPClientError, GBPQuotaExceededError
 from gbp_toolkit.hours import HoursService
-from gbp_toolkit.locations import LocationService
+from gbp_toolkit.locations import LocationService, LocationsService
 from gbp_toolkit.performance import PerformanceService
 from gbp_toolkit.posts import PostsService
 from gbp_toolkit.reviews import ReviewsService
@@ -19,6 +19,8 @@ from gbp_toolkit.types import (
     SpecialHoursDay,
 )
 
+__version__ = "0.2.0"
+
 
 class GBPToolkit:
     """Unified façade for Google Business Profile automation and management."""
@@ -27,7 +29,7 @@ class GBPToolkit:
         self.client = client
         self.posts = PostsService(client)
         self.hours = HoursService(client)
-        self.locations = LocationService(client)
+        self.locations = LocationsService(client)
         self.reviews = ReviewsService(client)
         self.performance = PerformanceService(client)
 
@@ -39,6 +41,7 @@ class GBPToolkit:
 
 
 __all__ = [
+    "__version__",
     "GBPToolkit",
     "GBPClient",
     "GBPClientError",
@@ -46,6 +49,7 @@ __all__ = [
     "PostsService",
     "HoursService",
     "LocationService",
+    "LocationsService",
     "ReviewsService",
     "PerformanceService",
     "CallToAction",

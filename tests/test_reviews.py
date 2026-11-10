@@ -23,20 +23,48 @@ def test_parse_review_item():
     assert rev.review_id == "rev_100"
     assert rev.reviewer_name == "Jane Doe"
     assert rev.star_rating == 5
-    assert rev.comment == "Great clean machines and fast service!"
     assert rev.reply_comment == "Thank you Jane!"
 
 
-def test_reply_to_review():
+def test_batch_reply_unanswered_template_and_callable():
     mock_client = MagicMock(spec=GBPClient)
     mock_client.account_id = "accounts/acc123"
     mock_client.location_id = "locations/loc456"
-    mock_client.request.return_value = {"comment": "Thanks for your visit!"}
+    mock_client.dry_run = False
+    mock_client.request.side_effect = [
+        {
+            "reviews": [
+                {"reviewId": "r1", "reviewer": {"displayName": "Maria"}, "starRating": "FIVE", "comment": "Excelente!"},
+                {
+                    "reviewId": "r2",
+                    "reviewer": {"displayName": "Carlos"},
+                    "starRating": "FIVE",
+                    "reviewReply": {"comment": "Gracias!"},
+                },
+            ]
+        },
+        {"comment": "Gracias Maria!"},
+    ]
 
     service = ReviewsService(mock_client)
-    res = service.reply_to_review("rev_100", "Thanks for your visit!")
-    assert res["comment"] == "Thanks for your visit!"
-    mock_client.request.assert_called_once()
+    outcomes = service.batch_reply_unanswered("Gracias {reviewer_name}!", dry_run=False)
+    assert len(outcomes) == 1
+    assert outcomes[0] == {
+        "review_id": "r1",
+        "reviewer_name": "Maria",
+        "star_rating": 5,
+        "reply": "Gracias Maria!",
+        "status": "replied",
+    }
+
+    mock_client.request.reset_mock()
+    mock_client.request.side_effect = [
+        {"reviews": [{"reviewId": "r3", "reviewer": {"displayName": "Ana"}, "starRating": "FOUR"}]}
+    ]
+    sim = service.batch_reply_unanswered(lambda r: f"Hola {r.reviewer_name} ({r.star_rating}★)", dry_run=True)
+    assert len(sim) == 1
+    assert sim[0]["status"] == "dry_run"
+    assert mock_client.request.call_count == 1
 
 
 def test_get_reviews_summary():

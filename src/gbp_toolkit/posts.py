@@ -2,17 +2,37 @@
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from gbp_toolkit.client import GBPClient
 from gbp_toolkit.dedup import PostDeduplicationLedger
-from gbp_toolkit.types import CallToAction, LocalPostPayload, LocalPostResult, PostActionType, PostTopicType
+from gbp_toolkit.types import (
+    LINK_ACTION_TYPES,
+    CallToAction,
+    LocalPostPayload,
+    LocalPostResult,
+    PostActionType,
+    PostTopicType,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _coerce_action_type(cta_type: Union[PostActionType, str]) -> PostActionType:
+    return cta_type if isinstance(cta_type, PostActionType) else PostActionType[cta_type.upper()]
+
+
+def _format_cta(cta: CallToAction) -> Optional[Dict[str, str]]:
+    action = _coerce_action_type(cta.action_type)
+    if action == PostActionType.CALL:
+        return {"actionType": PostActionType.CALL.value}
+    if action in LINK_ACTION_TYPES and cta.url:
+        return {"actionType": action.value, "url": cta.url}
+    return None
+
+
 def build_post_payload(payload: LocalPostPayload) -> Dict[str, Any]:
-    """Formats a LocalPostPayload into Google My Business v4/v1 API schema."""
+    """Formats a LocalPostPayload into Google My Business v4 API schema."""
     if len(payload.summary) > 1500:
         raise ValueError(f"Post summary exceeds Google 1500-char limit ({len(payload.summary)} chars)")
 
@@ -22,13 +42,11 @@ def build_post_payload(payload: LocalPostPayload) -> Dict[str, Any]:
         "topicType": payload.topic_type.value,
     }
     if payload.call_to_action:
-        body["callToAction"] = {
-            "actionType": payload.call_to_action.action_type.value,
-            "url": payload.call_to_action.url,
-        }
+        cta_dict = _format_cta(payload.call_to_action)
+        if cta_dict:
+            body["callToAction"] = cta_dict
     if payload.media_url:
         body["media"] = [{"mediaFormat": "PHOTO", "sourceUrl": payload.media_url}]
-
     return body
 
 
@@ -44,28 +62,26 @@ class PostsService:
         summary: str,
         topic_slug: str = "general",
         cta_url: Optional[str] = None,
-        cta_type: PostActionType = PostActionType.LEARN_MORE,
+        cta_type: Union[PostActionType, str] = PostActionType.LEARN_MORE,
         media_url: Optional[str] = None,
         topic_type: PostTopicType = PostTopicType.STANDARD,
         check_duplicate: bool = True,
     ) -> LocalPostResult:
-        """Publishes a local post with zero-repeat deduplication and CTA attachment."""
+        """Publishes a local post with zero-repeat deduplication and GMB v4-compliant CTA."""
         if check_duplicate and self.ledger.is_duplicate(summary, topic_slug=topic_slug):
             raise ValueError(f"Duplicate post rejected: Content or topic '{topic_slug}' published within cooldown.")
 
-        cta = CallToAction(action_type=cta_type, url=cta_url) if cta_url else None
-        payload = LocalPostPayload(
-            summary=summary,
-            topic_type=topic_type,
-            call_to_action=cta,
-            media_url=media_url,
+        action = _coerce_action_type(cta_type)
+        cta: Optional[CallToAction] = None
+        if action == PostActionType.CALL:
+            cta = CallToAction(action_type=PostActionType.CALL, url=None)
+        elif cta_url:
+            cta = CallToAction(action_type=action, url=cta_url)
+
+        api_body = build_post_payload(
+            LocalPostPayload(summary=summary, topic_type=topic_type, call_to_action=cta, media_url=media_url)
         )
-        api_body = build_post_payload(payload)
-
-        account = self._resolve_account()
-        location = self._resolve_location()
-        url = f"https://mybusiness.googleapis.com/v4/{account}/{location}/localPosts"
-
+        url = f"https://mybusiness.googleapis.com/v4/{self._resolve_account()}/{self._resolve_location()}/localPosts"
         resp = self.client.request("POST", url, json_data=api_body)
         post_id = resp.get("name", "simulated_post_id")
 
@@ -85,16 +101,13 @@ class PostsService:
         acc = self.client.account_id or os.getenv("GBP_ACCOUNT_ID", "").strip()
         if acc and acc != "accounts/current":
             return acc if acc.startswith("accounts/") else f"accounts/{acc}"
-        if not self.client.dry_run:
-            try:
-                resp = self.client.request("GET", "https://mybusinessaccountmanagement.googleapis.com/v1/accounts")
-                accounts = resp.get("accounts", [])
-                if accounts:
-                    return accounts[0]["name"]
-            except Exception:
-                pass
-            raise ValueError("Missing GBP_ACCOUNT_ID in environment and unable to resolve from API")
-        return "accounts/000000000"
+        if self.client.dry_run:
+            return "accounts/000000000"
+        resp = self.client.request("GET", "https://mybusinessaccountmanagement.googleapis.com/v1/accounts")
+        accounts = resp.get("accounts", [])
+        if accounts:
+            return accounts[0]["name"]
+        raise ValueError("Missing GBP_ACCOUNT_ID in environment and unable to resolve from API")
 
     def _resolve_location(self) -> str:
         loc = self.client.location_id or os.getenv("GBP_LOCATION_ID", "").strip()
@@ -103,4 +116,3 @@ class PostsService:
                 return "locations/000000000"
             raise ValueError("Missing GBP_LOCATION_ID in environment")
         return loc if loc.startswith("locations/") else f"locations/{loc}"
-
