@@ -1,4 +1,4 @@
-"""Tests for GBP CLI subcommands (doctor, keywords, reviews --unanswered, --json)."""
+"""Tests for GBP CLI subcommands (doctor, keywords, actions, posts audit, reviews --unanswered)."""
 
 import json
 from unittest.mock import MagicMock, patch
@@ -15,8 +15,27 @@ def _mock_toolkit() -> MagicMock:
     tk.client.account_id = "accounts/111"
     tk.client.location_id = "locations/222"
     tk.performance.get_search_keywords.return_value = [
-        {"keyword": "lavanderia hialeah", "impressions": 85, "insights": {"value": "85"}}
+        {"keyword": "lavanderia local", "impressions": 85, "insights": {"value": "85"}}
     ]
+    tk.performance.get_customer_actions.return_value = {
+        "startDate": "2026-08-10",
+        "endDate": "2026-11-07",
+        "publishedDays": 90,
+        "totalImpressions": 2817,
+        "totalActions": 448,
+        "calls": 32,
+        "directions": 381,
+        "websiteClicks": 35,
+    }
+    tk.posts.audit_rejected_posts.return_value = {
+        "total": 11,
+        "liveCount": 7,
+        "rejectedCount": 4,
+        "rejectionRate": 0.3636,
+        "stateCounts": {"LIVE": 7, "REJECTED": 4},
+        "rejectedPosts": [],
+        "posts": [],
+    }
     tk.reviews.list_reviews.return_value = [
         ReviewItem(review_id="rev1", reviewer_name="Elena", star_rating=5, comment="Muy limpio", reply_comment=None)
     ]
@@ -37,8 +56,24 @@ def test_cli_keywords_json(capsys):
         main(["--json", "keywords", "--limit", "5", "--months", "2"])
     out = json.loads(capsys.readouterr().out)
     assert out["count"] == 1
-    assert out["keywords"][0]["keyword"] == "lavanderia hialeah"
+    assert out["keywords"][0]["keyword"] == "lavanderia local"
     tk.performance.get_search_keywords.assert_called_once_with(page_size=5, months_back=2)
+
+
+def test_cli_actions_and_posts_audit_json(capsys):
+    tk = _mock_toolkit()
+    with patch("gbp_toolkit.cli.GBPToolkit.from_env", return_value=tk):
+        main(["actions", "--days", "90", "--json"])
+    out_act = json.loads(capsys.readouterr().out)
+    assert out_act["totalImpressions"] == 2817
+    tk.performance.get_customer_actions.assert_called_once_with(days=90)
+
+    with patch("gbp_toolkit.cli.GBPToolkit.from_env", return_value=tk):
+        main(["posts", "audit", "--limit", "25", "--json"])
+    out_posts = json.loads(capsys.readouterr().out)
+    assert out_posts["liveCount"] == 7
+    assert out_posts["rejectedCount"] == 4
+    tk.posts.audit_rejected_posts.assert_called_once_with(page_size=25)
 
 
 def test_cli_reviews_unanswered_json(capsys):

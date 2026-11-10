@@ -104,3 +104,14 @@ class PostHistoryEntry:
     summary_preview: str
     published_date: str
     cta_url: str
+
+
+@dataclass
+class PostPolicyReport:
+    valid: bool
+    violations: List[str]
+    warnings: List[str]
+
+    @property
+    def ok(self) -> bool:
+        return self.valid

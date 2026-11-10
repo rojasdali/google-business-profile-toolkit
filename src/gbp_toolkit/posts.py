@@ -1,57 +1,27 @@
-"""High-level Google Business Profile Local Posts publishing service."""
+"""High-level Google Business Profile Local Posts publishing and auditing service."""
 
-import logging
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from gbp_toolkit.client import GBPClient
 from gbp_toolkit.dedup import PostDeduplicationLedger
-from gbp_toolkit.types import (
-    LINK_ACTION_TYPES,
-    CallToAction,
-    LocalPostPayload,
-    LocalPostResult,
-    PostActionType,
-    PostTopicType,
+from gbp_toolkit.post_payload import build_cta, build_post_payload
+from gbp_toolkit.post_policy import (
+    coerce_action_type,
+    enforce_post_policy,
+    parse_local_post,
+    summarize_post_audit,
+    validate_post_policy,
 )
+from gbp_toolkit.types import LocalPostPayload, LocalPostResult, PostActionType, PostTopicType
 
-logger = logging.getLogger(__name__)
-
-
-def _coerce_action_type(cta_type: Union[PostActionType, str]) -> PostActionType:
-    return cta_type if isinstance(cta_type, PostActionType) else PostActionType[cta_type.upper()]
-
-
-def _format_cta(cta: CallToAction) -> Optional[Dict[str, str]]:
-    action = _coerce_action_type(cta.action_type)
-    if action == PostActionType.CALL:
-        return {"actionType": PostActionType.CALL.value}
-    if action in LINK_ACTION_TYPES and cta.url:
-        return {"actionType": action.value, "url": cta.url}
-    return None
-
-
-def build_post_payload(payload: LocalPostPayload) -> Dict[str, Any]:
-    """Formats a LocalPostPayload into Google My Business v4 API schema."""
-    if len(payload.summary) > 1500:
-        raise ValueError(f"Post summary exceeds Google 1500-char limit ({len(payload.summary)} chars)")
-
-    body: Dict[str, Any] = {
-        "languageCode": payload.language_code,
-        "summary": payload.summary,
-        "topicType": payload.topic_type.value,
-    }
-    if payload.call_to_action:
-        cta_dict = _format_cta(payload.call_to_action)
-        if cta_dict:
-            body["callToAction"] = cta_dict
-    if payload.media_url:
-        body["media"] = [{"mediaFormat": "PHOTO", "sourceUrl": payload.media_url}]
-    return body
+ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts"
 
 
 class PostsService:
-    """Manages creation, deduplication, and listing of Google Business Profile local posts."""
+    """Manages creation, policy linting, deduplication, and auditing of GBP local posts."""
+
+    validate_post_policy = staticmethod(validate_post_policy)
 
     def __init__(self, client: GBPClient, ledger: Optional[PostDeduplicationLedger] = None):
         self.client = client
@@ -66,28 +36,20 @@ class PostsService:
         media_url: Optional[str] = None,
         topic_type: PostTopicType = PostTopicType.STANDARD,
         check_duplicate: bool = True,
+        enforce_policy: bool = True,
     ) -> LocalPostResult:
-        """Publishes a local post with zero-repeat deduplication and GMB v4-compliant CTA."""
+        """Publishes a local post with policy linting, zero-repeat dedup, and GMB v4 CTA."""
+        action = coerce_action_type(cta_type)
+        enforce_post_policy(summary, action, enforce=enforce_policy)
         if check_duplicate and self.ledger.is_duplicate(summary, topic_slug=topic_slug):
             raise ValueError(f"Duplicate post rejected: Content or topic '{topic_slug}' published within cooldown.")
-
-        action = _coerce_action_type(cta_type)
-        cta: Optional[CallToAction] = None
-        if action == PostActionType.CALL:
-            cta = CallToAction(action_type=PostActionType.CALL, url=None)
-        elif cta_url:
-            cta = CallToAction(action_type=action, url=cta_url)
-
-        api_body = build_post_payload(
-            LocalPostPayload(summary=summary, topic_type=topic_type, call_to_action=cta, media_url=media_url)
+        payload = LocalPostPayload(
+            summary=summary, topic_type=topic_type, call_to_action=build_cta(action, cta_url), media_url=media_url
         )
-        url = f"https://mybusiness.googleapis.com/v4/{self._resolve_account()}/{self._resolve_location()}/localPosts"
-        resp = self.client.request("POST", url, json_data=api_body)
+        resp = self.client.request("POST", self._posts_url(), json_data=build_post_payload(payload))
         post_id = resp.get("name", "simulated_post_id")
-
         if not self.client.dry_run:
             self.ledger.record_publication(summary, topic_slug=topic_slug, post_id=post_id)
-
         return LocalPostResult(
             post_id=post_id,
             name=resp.get("name", ""),
@@ -97,22 +59,34 @@ class PostsService:
             search_url=resp.get("searchUrl"),
         )
 
+    def list_posts(self, page_size: int = 20) -> List[Dict[str, Any]]:
+        resp = self.client.request("GET", f"{self._posts_url()}?pageSize={page_size}")
+        return [parse_local_post(p) for p in resp.get("localPosts", [])]
+
+    def audit_rejected_posts(self, page_size: int = 50) -> Dict[str, Any]:
+        return summarize_post_audit(self.list_posts(page_size=page_size))
+
+    def _posts_url(self) -> str:
+        return f"https://mybusiness.googleapis.com/v4/{self._resolve_account()}/{self._resolve_location()}/localPosts"
+
     def _resolve_account(self) -> str:
         acc = self.client.account_id or os.getenv("GBP_ACCOUNT_ID", "").strip()
         if acc and acc != "accounts/current":
             return acc if acc.startswith("accounts/") else f"accounts/{acc}"
         if self.client.dry_run:
             return "accounts/000000000"
-        resp = self.client.request("GET", "https://mybusinessaccountmanagement.googleapis.com/v1/accounts")
-        accounts = resp.get("accounts", [])
+        accounts = self.client.request("GET", ACCOUNTS_URL).get("accounts", [])
         if accounts:
             return accounts[0]["name"]
         raise ValueError("Missing GBP_ACCOUNT_ID in environment and unable to resolve from API")
 
     def _resolve_location(self) -> str:
         loc = self.client.location_id or os.getenv("GBP_LOCATION_ID", "").strip()
-        if not loc:
-            if self.client.dry_run:
-                return "locations/000000000"
-            raise ValueError("Missing GBP_LOCATION_ID in environment")
-        return loc if loc.startswith("locations/") else f"locations/{loc}"
+        if loc:
+            return loc if loc.startswith("locations/") else f"locations/{loc}"
+        if self.client.dry_run:
+            return "locations/000000000"
+        raise ValueError("Missing GBP_LOCATION_ID in environment")
+
+
+__all__ = ["PostsService", "build_post_payload", "validate_post_policy"]

@@ -47,7 +47,8 @@ def main() -> None:
     for sid, (_, body) in node_map.items():
         for m in WIKILINK_RE.finditer(body):
             target = os.path.splitext(os.path.basename(m.group(1).strip()))[0]
-            if target in node_ids and target != sid and not any(e["source"] == sid and e["target"] == target for e in edges):
+            already = any(e["source"] == sid and e["target"] == target for e in edges)
+            if target in node_ids and target != sid and not already:
                 edges.append({"source": sid, "target": target, "type": "relates_to"})
 
     deg = {nid: sum(1 for e in edges if e["source"] == nid or e["target"] == nid) for nid in node_ids}
@@ -71,7 +72,8 @@ def main() -> None:
 
     report = f"# Knowledge Graph Analysis Report\n\nBuilt: `{datetime.utcnow().isoformat()}Z`\n\n"
     report += f"- **Nodes**: {len(nodes)}\n- **Edges**: {len(edges)}\n- **Orphans**: {len(orphans)}\n\n"
-    report += "## Connected Entities\n" + "\n".join(f"- `[[{nid}]]` ({deg[nid]} links)" for nid in sorted(deg, key=deg.get, reverse=True)) + "\n"
+    ranked = sorted(deg, key=deg.get, reverse=True)
+    report += "## Connected Entities\n" + "\n".join(f"- `[[{nid}]]` ({deg[nid]} links)" for nid in ranked) + "\n"
     with open(os.path.join(out_dir, "GRAPH_REPORT.md"), "w", encoding="utf-8") as f:
         f.write(report)
     print(f"✅ Generated graph/graph.json ({len(nodes)} nodes, {len(edges)} edges) and GRAPH_REPORT.md")

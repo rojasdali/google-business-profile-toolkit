@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-business-profile-toolkit"
-version = "0.2.0"
+version = "0.3.0"
 description = "Agnostic, modular Python SDK and CLI for Google Business Profile API: local posts, zero-repeat deduplication, holiday hours, reviews, and local search performance metrics."
 readme = "README.md"
 authors = [{ name = "Dali Rojas", email = "rojasdali@gmail.com" }]
