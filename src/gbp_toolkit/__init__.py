@@ -8,7 +8,7 @@ from gbp_toolkit.locations import LocationService, LocationsService
 from gbp_toolkit.performance import PerformanceService
 from gbp_toolkit.post_policy import validate_post_policy
 from gbp_toolkit.posts import PostsService
-from gbp_toolkit.reviews import ReviewsService
+from gbp_toolkit.reviews import ReviewsManager, ReviewsService
 from gbp_toolkit.types import (
     CallToAction,
     LocalPostPayload,
@@ -53,6 +53,7 @@ __all__ = [
     "LocationService",
     "LocationsService",
     "ReviewsService",
+    "ReviewsManager",
     "PerformanceService",
     "CallToAction",
     "LocalPostPayload",
