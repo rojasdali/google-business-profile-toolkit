@@ -38,6 +38,11 @@ def test_parse_review_item_null_reviewer_and_reply():
     assert rev.star_rating == 5
     assert rev.reply_comment is None
 
+    rev_null_name = parse_review_item(
+        {"reviewId": "r_null_name", "reviewer": {"displayName": None}, "starRating": "FOUR"}
+    )
+    assert rev_null_name.reviewer_name == "Anonymous"
+
 
 def test_reviews_manager_alias():
     assert ReviewsManager is ReviewsService
