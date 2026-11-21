@@ -18,10 +18,10 @@ def parse_star_rating(rating_str: Optional[str]) -> int:
 
 def parse_review_item(data: Dict[str, Any]) -> ReviewItem:
     """Parses raw Google My Business v4 review payload."""
-    reply_data = data.get("reviewReply", {})
+    reply_data = data.get("reviewReply") or {}
     return ReviewItem(
         review_id=data.get("reviewId", ""),
-        reviewer_name=data.get("reviewer", {}).get("displayName", "Anonymous"),
+        reviewer_name=(data.get("reviewer") or {}).get("displayName", "Anonymous"),
         star_rating=parse_star_rating(data.get("starRating")),
         comment=data.get("comment"),
         reply_comment=reply_data.get("comment"),

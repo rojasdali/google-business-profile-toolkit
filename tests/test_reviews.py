@@ -29,6 +29,16 @@ def test_parse_review_item_missing_or_unknown_rating():
     assert unspec.star_rating == 0
 
 
+def test_parse_review_item_null_reviewer_and_reply():
+    rev = parse_review_item(
+        {"reviewId": "r_null_rev", "reviewer": None, "starRating": "FIVE", "reviewReply": None}
+    )
+    assert rev.review_id == "r_null_rev"
+    assert rev.reviewer_name == "Anonymous"
+    assert rev.star_rating == 5
+    assert rev.reply_comment is None
+
+
 def test_reviews_manager_alias():
     assert ReviewsManager is ReviewsService
 
