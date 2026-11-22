@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock
 
-from gbp_toolkit.client import GBPClient
+import pytest
+
+from gbp_toolkit.client import GBPClient, GBPClientError
 from gbp_toolkit.reviews import ReviewsManager, ReviewsService, parse_review_item, parse_star_rating
 
 
@@ -223,3 +225,80 @@ def test_batch_reply_unanswered_custom_hold_below():
             for o in ReviewsService(c_low).batch_reply_unanswered("Thanks!", hold_below=hb)
         }
         assert res_low == {"r0": "held", "r1": "replied"}
+
+
+def test_parse_review_item_null_review_id_and_batch_skip():
+    rev_none = parse_review_item({"reviewId": None, "starRating": "FIVE"})
+    assert rev_none.review_id == ""
+    rev_ws = parse_review_item({"reviewId": "   ", "starRating": "FIVE"})
+    assert rev_ws.review_id == ""
+
+    mock_client = _make_mock_client([
+        {"reviewId": None, "reviewer": {"displayName": "NoId"}, "starRating": "FIVE"},
+        {"reviewId": "  ", "reviewer": {"displayName": "WsId"}, "starRating": "FIVE"},
+        {"reviewId": "r_ok", "reviewer": {"displayName": "Ok"}, "starRating": "FIVE"},
+    ])
+    svc = ReviewsService(mock_client)
+    outcomes = svc.batch_reply_unanswered("Thanks {reviewer_name}!", dry_run=False)
+    assert [o["status"] for o in outcomes] == ["skipped", "skipped", "replied"]
+    put_calls = [c for c in mock_client.request.call_args_list if c.args[0] == "PUT"]
+    assert len(put_calls) == 1 and put_calls[0].args[1].endswith("/r_ok/reply")
+
+    for bad_id in ("", "   ", None):
+        with pytest.raises(ValueError, match="Review ID"):
+            svc.reply_to_review(bad_id, "Thanks!")  # type: ignore[arg-type]
+
+
+def test_null_reviews_summary_fields_and_mid_batch_reply_failure():
+    mock_client = MagicMock(spec=GBPClient)
+    mock_client.account_id = "accounts/acc123"
+    mock_client.location_id = "locations/loc456"
+    mock_client.dry_run = False
+
+    mock_client.request.return_value = {"reviews": None}
+    svc = ReviewsService(mock_client)
+    assert svc.list_reviews() == []
+
+    mock_client.request.return_value = {"reviews": [None], "averageRating": None, "totalReviewCount": None}
+    summary = svc.get_reviews_summary()
+    assert summary == {"averageRating": 0.0, "totalReviews": 0, "latest": None}
+
+    mock_client.request.side_effect = [
+        {
+            "reviews": [
+                {"reviewId": "r1", "starRating": "FIVE"},
+                {"reviewId": "r2", "starRating": "FIVE"},
+                {"reviewId": "r3", "starRating": "FIVE"},
+            ]
+        },
+        {"comment": "ok"},
+        GBPClientError("GBP API request failed (500): transient"),
+    ]
+    with pytest.raises(GBPClientError, match="500"):
+        svc.batch_reply_unanswered("Thanks!", dry_run=False)
+    put_calls = [c for c in mock_client.request.call_args_list if c.args[0] == "PUT"]
+    assert len(put_calls) == 2
+    assert put_calls[0].args[1].endswith("/r1/reply")
+    assert put_calls[1].args[1].endswith("/r2/reply")
+
+
+def test_batch_reply_empty_or_whitespace_and_unknown_placeholder_skipped():
+    payload = [
+        {"reviewId": "r_ws", "reviewer": {"displayName": "Alex"}, "starRating": "FIVE"},
+        {"reviewId": "r_ok", "reviewer": {"displayName": "Bea"}, "starRating": "FIVE"},
+    ]
+    c_ws = _make_mock_client(payload)
+    outcomes_ws = ReviewsService(c_ws).batch_reply_unanswered(
+        lambda r: "   " if r.review_id == "r_ws" else f"Thanks {r.reviewer_name}!", dry_run=False
+    )
+    assert [o["status"] for o in outcomes_ws] == ["skipped", "replied"]
+    assert outcomes_ws[0]["reply"] is None
+    put_ws = [c for c in c_ws.request.call_args_list if c.args[0] == "PUT"]
+    assert len(put_ws) == 1 and put_ws[0].args[1].endswith("/r_ok/reply")
+
+    c_tpl = _make_mock_client([{"reviewId": "r_tpl", "reviewer": {"displayName": "Cat"}, "starRating": "FIVE"}])
+    outcomes_tpl = ReviewsService(c_tpl).batch_reply_unanswered("Thanks {unknown_field}!", dry_run=False)
+    assert len(outcomes_tpl) == 1
+    assert outcomes_tpl[0]["status"] == "skipped"
+    assert outcomes_tpl[0]["reply"] is None
+    assert not any(c.args[0] == "PUT" for c in c_tpl.request.call_args_list)
